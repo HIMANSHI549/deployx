@@ -3,10 +3,12 @@ package com.deployx.worker;
 import java.util.UUID;
 
 import org.springframework.stereotype.Component;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Component
+@ConditionalOnProperty(name = "deployx.queue.type", havingValue = "in-process", matchIfMissing = true)
 public class InProcessDeploymentJobPublisher implements DeploymentJobPublisher {
 
     private final InProcessDeploymentWorker worker;

@@ -57,4 +57,9 @@ public class DeploymentController {
     public void stop(@PathVariable UUID id) {
         deploymentService.stop(SecurityUtils.currentUserId(), id);
     }
+
+    @PostMapping("/projects/{projectId}/deployments/{deploymentId}/rollback")
+    public DeploymentResponse rollback(@PathVariable UUID projectId, @PathVariable UUID deploymentId) {
+        return deploymentService.rollback(SecurityUtils.currentUserId(), projectId, deploymentId);
+    }
 }

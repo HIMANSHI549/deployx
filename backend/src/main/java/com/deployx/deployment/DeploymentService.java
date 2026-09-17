@@ -86,6 +86,27 @@ public class DeploymentService {
         auditService.record(ownerId, "DEPLOYMENT_STOPPED", "deployment", deploymentId);
     }
 
+    @Transactional
+    public DeploymentResponse rollback(UUID ownerId, UUID projectId, UUID deploymentId) {
+        Project project = projectService.requireOwned(ownerId, projectId);
+        Deployment target = deploymentRepository.findByIdAndProject_Owner_Id(deploymentId, ownerId)
+                .filter(deployment -> deployment.getProject().getId().equals(project.getId()))
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Deployment not found"));
+        if (target.getStatus() != DeploymentStatus.READY) {
+            throw new ApiException(HttpStatus.CONFLICT, "Only ready deployments can be restored");
+        }
+        deploymentRepository.findFirstByProject_IdAndStatusOrderByCreatedAtDesc(projectId, DeploymentStatus.READY)
+                .filter(current -> !current.getId().equals(target.getId()))
+                .ifPresent(current -> {
+                    current.setStatus(DeploymentStatus.SUPERSEDED);
+                    deploymentRepository.save(current);
+                    appendLog(current, "INFO", "Deployment superseded by rollback to " + target.getId());
+                });
+        appendLog(target, "INFO", "Deployment restored as active version");
+        auditService.record(ownerId, "DEPLOYMENT_ROLLED_BACK", "deployment", target.getId());
+        return toResponse(target);
+    }
+
     public Deployment requireOwned(UUID ownerId, UUID deploymentId) {
         return deploymentRepository.findByIdAndProject_Owner_Id(deploymentId, ownerId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Deployment not found"));

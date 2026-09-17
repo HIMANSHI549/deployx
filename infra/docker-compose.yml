@@ -26,5 +26,60 @@ services:
       - "5672:5672"
       - "15672:15672"
 
+  api:
+    build: ../backend
+    environment:
+      DEPLOYX_DB_URL: jdbc:postgresql://postgres:5432/deployx
+      DEPLOYX_DB_USER: deployx
+      DEPLOYX_DB_PASSWORD: deployx
+      DEPLOYX_RABBITMQ_HOST: rabbitmq
+      DEPLOYX_REDIS_HOST: redis
+      DEPLOYX_QUEUE_TYPE: rabbitmq
+      DEPLOYX_REDIS_ENABLED: "true"
+      DEPLOYX_JWT_SECRET: ${DEPLOYX_JWT_SECRET:-local-compose-secret-change-before-production}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      redis:
+        condition: service_started
+    expose:
+      - "8080"
+
+  frontend:
+    build: ../frontend
+    expose:
+      - "80"
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "8081:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api
+      - frontend
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - api
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change-me}
+    depends_on:
+      - prometheus
+
 volumes:
   deployx-postgres:

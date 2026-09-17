@@ -31,6 +31,7 @@ public class InProcessDeploymentWorker {
     private final Path workspace;
     private final String publicBaseUrl;
         private final String healthPath;
+    private final RedisJobCoordinator coordinator;
         private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(java.time.Duration.ofSeconds(2))
             .build();
@@ -40,30 +41,39 @@ public class InProcessDeploymentWorker {
             @Value("${deployx.worker.mode}") String mode,
             @Value("${deployx.worker.workspace}") String workspace,
             @Value("${deployx.worker.base-url}") String publicBaseUrl,
-            @Value("${deployx.worker.health-path:/}") String healthPath) {
+            @Value("${deployx.worker.health-path:/}") String healthPath,
+            RedisJobCoordinator coordinator) {
         this.persistence = persistence;
         this.mode = mode;
         this.workspace = Path.of(workspace);
         this.publicBaseUrl = publicBaseUrl;
         this.healthPath = healthPath.startsWith("/") ? healthPath : "/" + healthPath;
+        this.coordinator = coordinator;
     }
 
     @Async("deploymentExecutor")
     public void process(UUID deploymentId) {
+        if (!coordinator.tryStart(deploymentId)) {
+            log.info("Deployment {} is already being processed", deploymentId);
+            return;
+        }
         try {
+            coordinator.mark(deploymentId.toString(), "BUILDING");
             persistence.markBuilding(deploymentId, mode);
             if ("docker".equalsIgnoreCase(mode)) {
                 runDockerPipeline(deploymentId);
             } else {
                 runSimulatedPipeline(deploymentId);
             }
+            coordinator.mark(deploymentId.toString(), "READY");
         } catch (Exception ex) {
             log.warn("Deployment {} failed", deploymentId, ex);
             persistence.markFailed(deploymentId, ex.getMessage());
+            coordinator.mark(deploymentId.toString(), "FAILED");
         }
     }
 
-    private void runSimulatedPipeline(UUID deploymentId) throws InterruptedException {
+    private void runSimulatedPipeline(UUID deploymentId) throws IOException, InterruptedException {
         DeploymentJobView job = persistence.loadJob(deploymentId);
         persistence.append(deploymentId, "INFO", "Validating repository URL " + job.repoUrl());
         Thread.sleep(400);

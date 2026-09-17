@@ -7,6 +7,7 @@ Authenticated deployment routes:
 - `GET /api/v1/deployments/{id}` returns the current status.
 - `GET /api/v1/deployments/{id}/logs` returns persisted worker logs.
 - `POST /api/v1/deployments/{id}/stop` stops a `READY` deployment and returns `204 No Content`.
+- `POST /api/v1/projects/{projectId}/deployments/{deploymentId}/rollback` restores a previous `READY` deployment and marks the current version `SUPERSEDED`.
 
 In Docker mode, the worker allocates an available host port, runs the image with memory and CPU limits, and only marks it `READY` after the configured health path responds. Configure the probe with `DEPLOYX_WORKER_HEALTH_PATH` (default `/`).
 # API

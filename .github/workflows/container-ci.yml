@@ -1,0 +1,18 @@
+name: Container CI
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+
+jobs:
+  compose-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose
+        run: DEPLOYX_JWT_SECRET=ci-secret docker compose -f infra/docker-compose.yml config
+      - name: Build API image
+        run: docker build -t deployx-api:ci backend
+      - name: Build dashboard image
+        run: docker build -t deployx-dashboard:ci frontend

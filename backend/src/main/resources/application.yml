@@ -18,12 +18,28 @@ spring:
           time_zone: UTC
   flyway:
     enabled: true
+  rabbitmq:
+    host: ${DEPLOYX_RABBITMQ_HOST:localhost}
+    port: ${DEPLOYX_RABBITMQ_PORT:5672}
+    username: ${DEPLOYX_RABBITMQ_USER:guest}
+    password: ${DEPLOYX_RABBITMQ_PASSWORD:guest}
+  data:
+    redis:
+      host: ${DEPLOYX_REDIS_HOST:localhost}
+      port: ${DEPLOYX_REDIS_PORT:6379}
 
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
 
 deployx:
+  queue:
+    type: ${DEPLOYX_QUEUE_TYPE:in-process}
+    exchange: ${DEPLOYX_QUEUE_EXCHANGE:deployx}
+    queue: ${DEPLOYX_QUEUE_NAME:deployments}
+  coordination:
+    enabled: ${DEPLOYX_REDIS_ENABLED:false}
+    lock-seconds: ${DEPLOYX_REDIS_LOCK_SECONDS:900}
   jwt:
     secret: ${DEPLOYX_JWT_SECRET:local-dev-only-change-me-to-a-256-bit-secret-key!!}
     expiration-ms: 86400000
@@ -37,4 +53,8 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
