@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DeployX Interview Guide</title>
+<style>
+@page { size: A4; margin: 17mm 16mm; }
+:root { color: #17221d; background: #f5f1e8; font-family: Georgia, 'Times New Roman', serif; }
+body { margin: 0; line-height: 1.5; font-size: 10.5pt; }
+.cover { min-height: 245mm; display: flex; flex-direction: column; justify-content: space-between; page-break-after: always; }
+.kicker { color: #d45b38; font: 700 10pt Arial, sans-serif; letter-spacing: .16em; text-transform: uppercase; }
+h1 { font-size: 44pt; line-height: .95; font-weight: 400; max-width: 145mm; margin: 25mm 0 8mm; }
+h2 { font-size: 21pt; font-weight: 400; border-bottom: 2px solid #d45b38; padding-bottom: 4px; margin: 18mm 0 6mm; page-break-after: avoid; }
+h3 { font: 700 11pt Arial, sans-serif; letter-spacing: .03em; margin: 9mm 0 2mm; }
+p { margin: 3mm 0; }
+.lead { font-size: 15pt; max-width: 145mm; }
+.meta { color: #69736b; font: 9pt Arial, sans-serif; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
+.box { background: #ebe5d8; padding: 5mm; break-inside: avoid; }
+code, pre { font-family: Consolas, monospace; }
+pre { background: #17221d; color: #f8f4eb; padding: 5mm; white-space: pre-wrap; font-size: 8.5pt; break-inside: avoid; }
+ul { padding-left: 6mm; }
+li { margin: 1.5mm 0; }
+.small { font-size: 9pt; color: #69736b; }
+.endpoint { font-family: Consolas, monospace; color: #b54c31; font-size: 9pt; }
+.page-break { page-break-before: always; }
+.footer { color: #69736b; font: 8pt Arial, sans-serif; border-top: 1px solid #c9c4b8; padding-top: 3mm; }
+</style>
+</head>
+<body>
+<section class="cover">
+  <div><div class="kicker">SDE Portfolio Project</div><h1>DeployX<br><span style="color:#d45b38">Interview Guide</span></h1><p class="lead">A mini cloud deployment platform that turns a Git repository into a monitored, containerized application.</p></div>
+  <div class="meta">Java + Spring Boot · React + TypeScript · PostgreSQL · RabbitMQ · Redis · Docker · Nginx · Prometheus · Grafana</div>
+</section>
+
+<h2>30-Second Pitch</h2>
+<p>DeployX is a mini cloud deployment platform inspired by services such as Render and Railway. A developer connects a public Git repository, creates a project, and starts a deployment. DeployX asynchronously clones the repository, builds a Docker image, runs the application with resource limits, performs a health check, stores logs, and exposes the application through a generated URL.</p>
+<p>It demonstrates authentication, REST APIs, PostgreSQL persistence, asynchronous jobs, RabbitMQ, Redis coordination, Docker isolation, reverse proxying, observability, CI/CD, and cloud deployment architecture.</p>
+
+<h2>The Problem</h2>
+<p>Manual deployment requires developers to configure servers, install dependencies, build images, start containers, inspect logs, monitor health, and recover from broken releases. DeployX reduces that workflow to:</p>
+<pre>Connect repository  ->  Deploy  ->  Monitor  ->  Access URL  ->  Roll back</pre>
+
+<h2>Architecture</h2>
+<pre>Developer
+    |
+React Dashboard
+    |
+Nginx Reverse Proxy
+    |
+Spring Boot API -------- PostgreSQL
+    |        \----------- Redis
+    |\
+    | RabbitMQ Queue
+    |        |
+    | Deployment Worker ---- Git Repository
+    |                         Docker Runtime
+    |                         Health Check
+    |
+Prometheus -------- Grafana</pre>
+
+<h2>End-to-End Workflow</h2>
+<ol>
+<li>User registers or logs in and receives a JWT.</li>
+<li>User creates a project with repository URL and branch.</li>
+<li>API verifies ownership and inserts a deployment with status <code>QUEUED</code>.</li>
+<li>API publishes the deployment ID to RabbitMQ and returns immediately.</li>
+<li>Worker consumes the message and Redis prevents duplicate processing.</li>
+<li>Worker clones the branch, validates the Dockerfile, builds an image, and starts a container.</li>
+<li>Worker applies CPU and memory limits and probes the configured HTTP health path.</li>
+<li>Deployment becomes <code>READY</code> or <code>FAILED</code>; logs are persisted in PostgreSQL.</li>
+<li>Dashboard polls deployment status and displays logs and the public URL.</li>
+</ol>
+
+<h2>Technology Decisions</h2>
+<div class="grid">
+<div class="box"><h3>Spring Boot</h3><p>REST APIs, dependency injection, transactions, security, persistence, and concurrency.</p></div>
+<div class="box"><h3>PostgreSQL</h3><p>Durable source of truth for users, projects, deployments, logs, and audit records.</p></div>
+<div class="box"><h3>RabbitMQ</h3><p>Decouples slow Docker work from the HTTP request and allows worker scaling.</p></div>
+<div class="box"><h3>Redis</h3><p>Stores short-lived coordination state and per-deployment processing locks.</p></div>
+<div class="box"><h3>Docker</h3><p>Isolates application workloads with unique containers, image tags, ports, CPU, and memory limits.</p></div>
+<div class="box"><h3>Nginx</h3><p>Provides one public entry point and routes dashboard, API, health, and metrics traffic.</p></div>
+</div>
+
+<h2>Deployment State Machine</h2>
+<pre>QUEUED -> BUILDING -> READY
+                  \-> FAILED
+READY -> STOPPED
+READY -> SUPERSEDED</pre>
+<ul><li><b>QUEUED:</b> accepted by the API.</li><li><b>BUILDING:</b> worker is processing the job.</li><li><b>READY:</b> container passed its readiness probe.</li><li><b>FAILED:</b> build, runtime, or health check failed.</li><li><b>STOPPED:</b> running deployment was stopped.</li><li><b>SUPERSEDED:</b> replaced by a rollback or newer version.</li></ul>
+
+<h2>Security and Reliability</h2>
+<ul><li>JWT authentication and BCrypt password hashing.</li><li>Stateless sessions with protected API routes.</li><li>Ownership checks prevent cross-user project and deployment access.</li><li>Repository input accepts HTTPS GitHub and GitLab URLs.</li><li>Failures are persisted as status transitions and log entries.</li><li>Redis locks make message consumption idempotent across workers.</li><li>PostgreSQL remains the source of truth; Redis is temporary coordination storage.</li></ul>
+
+<h2>Rollback</h2>
+<p>Rollback verifies project ownership, confirms that the target deployment is <code>READY</code>, marks the current ready deployment as <code>SUPERSEDED</code>, records an audit event, and restores the selected release as active.</p>
+<p class="endpoint">POST /api/v1/projects/{projectId}/deployments/{deploymentId}/rollback</p>
+<p class="small">Production follow-up: route traffic by stable hostname and explicitly stop the replaced container during rollback.</p>
+
+<h2>Important Interview Tradeoffs</h2>
+<h3>Why a modular monolith first?</h3><p>It provides clear domain boundaries and simple local development without the operational cost of multiple services. The worker queue boundary allows later extraction into a separate process.</p>
+<h3>Why asynchronous deployment?</h3><p>Docker builds can take minutes. Keeping them out of the HTTP request prevents timeouts, blocked server threads, and poor user experience.</p>
+<h3>Why PostgreSQL and Redis together?</h3><p>PostgreSQL provides durable, transactional business data. Redis handles fast, temporary locks and state that does not need to be the system of record.</p>
+
+<h2>Current Demonstration</h2>
+<p>The local Compose stack contains PostgreSQL, Redis, RabbitMQ, Spring Boot, React, Nginx, Prometheus, and Grafana.</p>
+<ul><li>Dashboard: <code>http://localhost:8081</code></li><li>Health: <code>http://localhost:8081/actuator/health</code></li><li>Prometheus: <code>http://localhost:9090</code></li><li>Grafana: <code>http://localhost:3000</code></li><li>RabbitMQ management: <code>http://localhost:15672</code></li></ul>
+
+<h2>Honest Project Status</h2>
+<p>Implemented and validated: authentication, project management, RabbitMQ deployment queueing, Redis coordination, PostgreSQL persistence, Docker build support, resource limits, health checks, logs, rollback state transitions, Nginx routing, metrics, Grafana, CI workflows, and Docker Compose deployment.</p>
+<p>Next production improvements: extract the worker into a separate deployable process, implement stable hostname routing, add container cleanup policies, rate limiting, Testcontainers, GitHub App integration, TLS, VM deployment, backups, and managed secrets.</p>
+
+<h2>Interview Closing Statement</h2>
+<div class="box"><p>“I designed DeployX as a modular deployment control plane. The API handles authentication, ownership, deployment records, and job publishing, while the worker performs expensive deployment work asynchronously. PostgreSQL stores durable state, RabbitMQ decouples requests from execution, Redis prevents duplicate processing, and Docker isolates workloads. Nginx provides a single entry point, while Prometheus and Grafana provide operational visibility. I started with a modular monolith and designed clear boundaries so the worker can be extracted as the platform scales.”</p></div>
+
+<h2>Product Sales Pitch</h2>
+<div class="box"><p>“DeployX gives small teams a simple path from Git repository to running application without requiring them to manage deployment infrastructure manually. It combines repository-based deployments, Docker isolation, asynchronous builds, logs, health checks, rollback capability, and monitoring in one workflow. Unlike a basic deployment script, DeployX is designed around production concepts such as job queues, authorization, deployment history, failure recovery, resource limits, and observability.”</p></div>
+
+<div class="footer">DeployX Interview Guide · Prepared for technical interviews and product discussions</div>
+</body>
+</html>
