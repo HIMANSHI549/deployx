@@ -3,7 +3,6 @@ package com.deployx.audit;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -15,7 +14,7 @@ public class AuditService {
         this.auditLogRepository = auditLogRepository;
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public void record(UUID userId, String action, String resourceType, UUID resourceId) {
         AuditLog log = new AuditLog();
         log.setUserId(userId);
