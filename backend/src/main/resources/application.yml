@@ -1,0 +1,40 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: deployx-api
+  datasource:
+    url: ${DEPLOYX_DB_URL:jdbc:postgresql://localhost:5432/deployx}
+    username: ${DEPLOYX_DB_USER:deployx}
+    password: ${DEPLOYX_DB_PASSWORD:deployx}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+deployx:
+  jwt:
+    secret: ${DEPLOYX_JWT_SECRET:local-dev-only-change-me-to-a-256-bit-secret-key!!}
+    expiration-ms: 86400000
+  worker:
+    mode: ${DEPLOYX_WORKER_MODE:simulate}
+    workspace: ${DEPLOYX_WORKER_WORKSPACE:${java.io.tmpdir}/deployx-workspace}
+    base-url: ${DEPLOYX_PUBLIC_BASE_URL:http://localhost}
+    health-path: ${DEPLOYX_WORKER_HEALTH_PATH:/}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
